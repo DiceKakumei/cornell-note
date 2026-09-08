@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>コーネルノート</title>
+<style>
+  :root {
+    --bg: #f5f3ee;
+    --panel: #ffffff;
+    --line: #d8d2c4;
+    --accent: #8a6d3b;
+    --accent-soft: #efe6d6;
+    --text: #2c2a26;
+    --text-sub: #7a756a;
+    --danger: #b34a3c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  body { display: flex; flex-direction: column; }
+  #app { display: flex; flex: 1; min-height: 0; }
+
+  #sidebar-toggle-btn {
+    position: fixed; top: 12px; left: 272px; z-index: 30;
+    width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; color: var(--text-sub); cursor: pointer; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    transition: left 0.15s ease;
+  }
+  #sidebar-toggle-btn:hover { background: var(--accent-soft); color: var(--accent); }
+  body.sidebar-collapsed #sidebar-toggle-btn { left: 12px; }
+  body.sidebar-collapsed #sidebar { display: none; }
+
+  /* ===== サイドバー ===== */
+  #sidebar {
+    width: 260px; flex-shrink: 0;
+    background: #efeae0;
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column;
+  }
+  #sidebar-header {
+    padding: 14px; border-bottom: 1px solid var(--line);
+  }
+  #sidebar-header h1 {
+    font-size: 15px; margin: 0 0 10px 0; color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  #new-note-btn {
+    width: 100%; padding: 8px; border: none; border-radius: 6px;
+    background: var(--accent); color: #fff; font-size: 13px; cursor: pointer;
+  }
+  #new-note-btn:hover { opacity: 0.9; }
+  #print-btn {
+    width: 100%; margin-top: 8px; padding: 6px 4px; border: 1px solid var(--line);
+    border-radius: 6px; background: #fff; color: var(--text-sub); font-size: 12px; cursor: pointer;
+  }
+  #print-btn:hover { background: var(--accent-soft); color: var(--accent); }
+  #io-row { display: flex; gap: 6px; margin-top: 8px; }
+  #io-row button {
+    flex: 1; padding: 6px 4px; border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; color: var(--text-sub); font-size: 11px; cursor: pointer;
+  }
+  #io-row button:hover { background: var(--accent-soft); color: var(--accent); }
+  #note-list { flex: 1; overflow-y: auto; padding: 6px; }
+  .note-item {
+    padding: 10px 10px; border-radius: 6px; cursor: pointer;
+    margin-bottom: 4px; position: relative;
+  }
+  .note-item:hover { background: #e3ddcf; }
+  .note-item.active { background: var(--accent-soft); }
+  .note-item .title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .note-item .meta { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
+  .note-item .del-btn {
+    position: absolute; right: 6px; top: 8px; border: none; background: transparent;
+    color: var(--text-sub); cursor: pointer; font-size: 12px; padding: 2px 5px; border-radius: 4px;
+    opacity: 0; transition: opacity .15s;
+  }
+  .note-item:hover .del-btn { opacity: 1; }
+  .note-item .del-btn:hover { color: var(--danger); background: #f0e0dd; }
+
+  /* ===== メインエリア ===== */
+  #main { flex: 1; display: flex; flex-direction: column; padding: 24px; overflow-y: auto; }
+  #empty-state {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-sub); font-size: 14px;
+  }
+  .sheet {
+    background: var(--panel); border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    max-width: 980px; width: 100%; margin: 0 auto; display: flex; flex-direction: column;
+    flex: 1;
+  }
+  .sheet-header {
+    display: flex; gap: 12px; padding: 18px 20px; border-bottom: 2px solid var(--accent);
+    align-items: baseline; flex-wrap: wrap;
+  }
+  #title-input {
+    font-size: 20px; font-weight: 700; border: none; outline: none; flex: 1;
+    min-width: 160px; background: transparent; color: var(--text);
+  }
+  #title-input::placeholder { color: #b8b2a4; }
+  .header-field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sub); }
+  .header-field input {
+    border: none; border-bottom: 1px solid var(--line); outline: none; font-size: 13px;
+    padding: 2px 2px; background: transparent; color: var(--text);
+  }
+  .header-field input:focus { border-bottom-color: var(--accent); }
+
+  .cornell-body { display: flex; flex: 1; min-height: 380px; }
+  .cue-col {
+    flex: 1; min-width: 0; border-right: 2px dashed var(--line); padding: 14px 16px;
+    background: #fbfaf6;
+  }
+  .notes-col { flex: 2; min-width: 0; padding: 14px 16px; }
+  .col-label {
+    font-size: 11px; letter-spacing: 0.08em; color: var(--accent);
+    font-weight: 700; margin-bottom: 8px; text-transform: uppercase;
+  }
+  textarea {
+    width: 100%; border: none; outline: none; resize: none; background: transparent;
+    font-size: 14px; line-height: 1.9; color: var(--text); font-family: inherit;
+  }
+  #cue-text {
+    height: calc(100% - 24px);
+    scrollbar-width: none; -ms-overflow-style: none;
+  }
+  #cue-text::-webkit-scrollbar { display: none; }
+  #notes-text {
+    height: calc(100% - 24px);
+    background-image: repeating-linear-gradient(
+      to bottom, transparent, transparent 30px, var(--line) 31px
+    );
+  }
+
+  .summary-section {
+    border-top: 2px solid var(--accent); padding: 14px 20px 18px;
+  }
+  #summary-text { height: 80px; }
+
+  #save-status {
+    font-size: 11px; color: var(--text-sub); text-align: right; padding: 6px 20px 0;
+  }
+  #storage-warning {
+    display: none; background: #f6e4d8; color: #7a4a2c; font-size: 12px;
+    padding: 8px 14px; text-align: center; border-bottom: 1px solid #e0bfa1;
+  }
+
+  @media print {
+    #sidebar, #print-btn, #sidebar-toggle-btn, #save-status { display: none !important; }
+    #main { padding: 0; }
+    .sheet { box-shadow: none; max-width: 100%; }
+    #notes-text, #cue-text, #summary-text { color: #000; }
+  }
+</style>
+</head>
+<body>
+<div id="storage-warning">⚠ このブラウザでは自動保存が利用できません。ノートはこのタブを閉じると消えるため、こまめに「書き出し」で保存してください。</div>
+<button id="sidebar-toggle-btn" title="サイドバーの表示切替">‹</button>
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h1>コーネルノート</h1>
+      <button id="new-note-btn">＋ 新規ノート</button>
+      <button id="print-btn">印刷 / PDF保存</button>
+      <div id="io-row">
+        <button id="export-btn">書き出し</button>
+        <button id="import-btn">読み込み</button>
+      </div>
+      <input type="file" id="import-file" accept=".md,.json,text/markdown,application/json" style="display:none;">
+    </div>
+    <div id="note-list"></div>
+  </div>
+
+  <div id="main">
+    <div id="empty-state">左の「＋ 新規ノート」からノートを作成してください</div>
+
+    <div class="sheet" id="sheet" style="display:none;">
+      <div class="sheet-header">
+        <input id="title-input" type="text" placeholder="タイトルを入力">
+        <div class="header-field">科目 <input id="subject-input" type="text" placeholder="例：数学"></div>
+        <div class="header-field">日付 <input id="date-input" type="date"></div>
+      </div>
+
+      <div class="cornell-body">
+        <div class="cue-col">
+          <div class="col-label">キュー（question / keyword）</div>
+          <textarea id="cue-text" placeholder="キーワードや疑問点を書く"></textarea>
+        </div>
+        <div class="notes-col">
+          <div class="col-label">ノート（notes）</div>
+          <textarea id="notes-text" placeholder="授業・講義の内容を書く"></textarea>
+        </div>
+      </div>
+
+      <div class="summary-section">
+        <div class="col-label">まとめ（summary）</div>
+        <textarea id="summary-text" placeholder="このページの内容を自分の言葉で要約する"></textarea>
+      </div>
+      <div id="save-status">保存済み</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "cornell-notes";
+let notes = [];
+let currentId = null;
+let saveTimer = null;
+let storageBroken = false;
+
+function loadNotes() {
+  try {
+    notes = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch (e) {
+    notes = [];
+  }
+}
+function persist() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+  } catch (e) {
+    if (!storageBroken) {
+      storageBroken = true;
+      showStorageWarning();
+    }
+  }
+}
+function showStorageWarning() {
+  const el = document.getElementById("storage-warning");
+  if (el) el.style.display = "block";
+}
+function todayStr() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+function fmtDate(s) {
+  if (!s) return "";
+  const [y, m, d] = s.split("-");
+  return `${y}/${m}/${d}`;
+}
+
+function syncCueLinesToNotes() {
+  const cue = document.getElementById("cue-text");
+  const notesEl = document.getElementById("notes-text");
+  const notesLines = notesEl.value.split("\n").length;
+  const cueLines = cue.value.split("\n").length;
+  if (cueLines < notesLines) {
+    cue.value += "\n".repeat(notesLines - cueLines);
+  }
+}
+
+function syncNotesLinesToCue() {
+  const cue = document.getElementById("cue-text");
+  const notesEl = document.getElementById("notes-text");
+  const cueLines = cue.value.split("\n").length;
+  const notesLines = notesEl.value.split("\n").length;
+  if (notesLines < cueLines) {
+    notesEl.value += "\n".repeat(cueLines - notesLines);
+  }
+}
+
+let cueNotesScrollSyncing = false;
+function linkCueNotesScroll(source, target) {
+  target.scrollTop = source.scrollTop;
+}
+
+function createNote() {
+  const note = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title: "",
+    subject: "",
+    date: todayStr(),
+    cue: "",
+    notesBody: "",
+    summary: "",
+    updatedAt: Date.now()
+  };
+  notes.unshift(note);
+  persist();
+  renderList();
+  selectNote(note.id);
+}
+
+function deleteNote(id) {
+  const note = notes.find(n => n.id === id);
+  if (!note) return;
+  const label = note.title || "(無題のノート)";
+  if (!confirm(`「${label}」を削除します。よろしいですか？`)) return;
+  notes = notes.filter(n => n.id !== id);
+  persist();
+  if (currentId === id) {
+    currentId = null;
+    document.getElementById("sheet").style.display = "none";
+    document.getElementById("empty-state").style.display = "flex";
+  }
+  renderList();
+}
+
+function selectNote(id) {
+  currentId = id;
+  const note = notes.find(n => n.id === id);
+  if (!note) return;
+  document.getElementById("empty-state").style.display = "none";
+  document.getElementById("sheet").style.display = "flex";
+  document.getElementById("title-input").value = note.title;
+  document.getElementById("subject-input").value = note.subject;
+  document.getElementById("date-input").value = note.date;
+  document.getElementById("cue-text").value = note.cue;
+  document.getElementById("notes-text").value = note.notesBody;
+  document.getElementById("summary-text").value = note.summary;
+  document.getElementById("save-status").textContent = "保存済み";
+  syncCueLinesToNotes();
+  document.getElementById("cue-text").scrollTop = 0;
+  document.getElementById("notes-text").scrollTop = 0;
+  renderList();
+}
+
+function scheduleSave() {
+  document.getElementById("save-status").textContent = "編集中…";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveCurrent, 400);
+}
+
+function saveCurrent() {
+  const note = notes.find(n => n.id === currentId);
+  if (!note) return;
+  note.title = document.getElementById("title-input").value;
+  note.subject = document.getElementById("subject-input").value;
+  note.date = document.getElementById("date-input").value;
+  note.cue = document.getElementById("cue-text").value;
+  note.notesBody = document.getElementById("notes-text").value;
+  note.summary = document.getElementById("summary-text").value;
+  note.updatedAt = Date.now();
+  persist();
+  document.getElementById("save-status").textContent = "保存済み";
+  renderList();
+}
+
+function renderList() {
+  const list = document.getElementById("note-list");
+  list.innerHTML = "";
+  const sorted = [...notes].sort((a, b) => b.updatedAt - a.updatedAt);
+  for (const note of sorted) {
+    const item = document.createElement("div");
+    item.className = "note-item" + (note.id === currentId ? " active" : "");
+    item.innerHTML = `
+      <div class="title">${escapeHtml(note.title) || "(無題のノート)"}</div>
+      <div class="meta">${escapeHtml(note.subject) || "科目未設定"} ・ ${fmtDate(note.date)}</div>
+      <button class="del-btn" title="削除">削除</button>
+    `;
+    item.addEventListener("click", (e) => {
+      if (e.target.classList.contains("del-btn")) return;
+      selectNote(note.id);
+    });
+    item.querySelector(".del-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteNote(note.id);
+    });
+    list.appendChild(item);
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str || "";
+  return div.innerHTML;
+}
+
+function sanitizeFileName(name) {
+  return (name || "").replace(/[\\/:*?"<>|]/g, "_").trim() || "コーネルノート";
+}
+
+function noteToMarkdown(note) {
+  const cue = (note.cue || "").trim();
+  const notesBody = (note.notesBody || "").trim();
+  const summary = (note.summary || "").trim();
+  return `# ${note.title || "無題のノート"}
+
+- 科目: ${note.subject || "（未設定）"}
+- 日付: ${note.date || "（未設定）"}
+
+## キュー（キーワード・疑問点）
+
+${cue || "（なし）"}
+
+## ノート（内容）
+
+${notesBody || "（なし）"}
+
+## まとめ
+
+${summary || "（なし）"}
+`;
+}
+
+function notesToMarkdown(list) {
+  return list.map(noteToMarkdown).join("\n---\n\n");
+}
+
+function markdownToNotes(text) {
+  const blocks = text.split(/\n-{3,}\n/);
+  const result = [];
+  const section = (block, label) => {
+    const m = block.match(new RegExp(`##\\s*${label}[^\\n]*\\n([\\s\\S]*?)(?=\\n##\\s|$)`));
+    if (!m) return "";
+    const v = m[1].trim();
+    return v === "（なし）" ? "" : v;
+  };
+  for (const block of blocks) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+    const titleMatch = trimmed.match(/^#\s+(.+)$/m);
+    const subjectMatch = trimmed.match(/^-\s*科目:\s*(.*)$/m);
+    const dateMatch = trimmed.match(/^-\s*日付:\s*(.*)$/m);
+    const title = titleMatch ? titleMatch[1].trim() : "";
+    const subject = subjectMatch ? subjectMatch[1].trim() : "";
+    const date = dateMatch ? dateMatch[1].trim() : "";
+    result.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      title: title === "無題のノート" ? "" : title,
+      subject: subject === "（未設定）" ? "" : subject,
+      date: date === "（未設定）" ? "" : date,
+      cue: section(trimmed, "キュー"),
+      notesBody: section(trimmed, "ノート"),
+      summary: section(trimmed, "まとめ"),
+      updatedAt: Date.now()
+    });
+  }
+  return result;
+}
+
+function exportNotes() {
+  const blob = new Blob([notesToMarkdown(notes)], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const safeName = sanitizeFileName(document.getElementById("title-input").value || "コーネルノート");
+  a.href = url;
+  a.download = `${safeName}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importNotes(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    let imported;
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!Array.isArray(parsed)) throw new Error("invalid");
+      imported = parsed;
+      const existingIds = new Set(notes.map(n => n.id));
+      for (const note of imported) {
+        if (existingIds.has(note.id)) {
+          note.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        }
+      }
+    } catch (e) {
+      imported = markdownToNotes(reader.result);
+    }
+    if (!imported.length) {
+      alert("読み込みに失敗しました。正しいファイルか確認してください。");
+      return;
+    }
+    if (!confirm(`${imported.length}件のノートを読み込みます。よろしいですか？`)) return;
+    for (const note of imported) {
+      notes.unshift(note);
+    }
+    persist();
+    renderList();
+    if (notes.length > 0) selectNote(notes[0].id);
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById("new-note-btn").addEventListener("click", createNote);
+document.getElementById("export-btn").addEventListener("click", exportNotes);
+document.getElementById("import-btn").addEventListener("click", () => {
+  document.getElementById("import-file").click();
+});
+document.getElementById("import-file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (file) importNotes(file);
+  e.target.value = "";
+});
+document.getElementById("print-btn").addEventListener("click", () => {
+  if (!currentId) {
+    alert("印刷するノートを選択してください。");
+    return;
+  }
+  document.title = document.getElementById("title-input").value || "コーネルノート";
+  window.print();
+});
+
+(function setupSidebarToggle() {
+  const btn = document.getElementById("sidebar-toggle-btn");
+  function applyState(collapsed) {
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+    btn.textContent = collapsed ? "›" : "‹";
+  }
+  let collapsed = false;
+  try { collapsed = localStorage.getItem("cornell-sidebar-collapsed") === "1"; } catch (e) {}
+  applyState(collapsed);
+  btn.addEventListener("click", () => {
+    collapsed = !document.body.classList.contains("sidebar-collapsed");
+    applyState(collapsed);
+    try { localStorage.setItem("cornell-sidebar-collapsed", collapsed ? "1" : "0"); } catch (e) {}
+  });
+})();
+["title-input", "subject-input", "date-input", "cue-text", "notes-text", "summary-text"].forEach(id => {
+  document.getElementById(id).addEventListener("input", scheduleSave);
+});
+document.getElementById("notes-text").addEventListener("input", syncCueLinesToNotes);
+document.getElementById("cue-text").addEventListener("input", syncNotesLinesToCue);
+
+(function setupCueNotesScrollSync() {
+  const cueEl = document.getElementById("cue-text");
+  const notesEl = document.getElementById("notes-text");
+  cueEl.addEventListener("scroll", () => {
+    if (cueNotesScrollSyncing) return;
+    cueNotesScrollSyncing = true;
+    linkCueNotesScroll(cueEl, notesEl);
+    cueNotesScrollSyncing = false;
+  });
+  notesEl.addEventListener("scroll", () => {
+    if (cueNotesScrollSyncing) return;
+    cueNotesScrollSyncing = true;
+    linkCueNotesScroll(notesEl, cueEl);
+    cueNotesScrollSyncing = false;
+  });
+})();
+
+loadNotes();
+renderList();
+if (notes.length > 0) {
+  selectNote([...notes].sort((a, b) => b.updatedAt - a.updatedAt)[0].id);
+}
+</script>
+</body>
+</html>
